@@ -18,12 +18,12 @@ int help = 0;
 // 2 rows X MAX students coloumns
 // First row to hold studentID
 // Second row to hold number of visits
-int priorityQueue[2][MAX];
+int *priorityQueue;
 int *helpNumber;	// number of help the student at that index need
-int visits[MAX];	// number of times the student at that index visited
+int *visits;	// number of times the student at that index visited
 int *studentIDs;	// student ID
 int *tutorIDs;	// tutor ID
-int tutor[MAX];	// tutor that tutored the student at that index
+int *tutor;	// tutor that tutored the student at that index
 int chairsAvailable = 0;
 int done = 0;	// Needs to hit the number of students
 int *currentStudent;
@@ -64,11 +64,15 @@ int main(int argc, const char *argv[])
     studentIDs = (int *)malloc(students *sizeof(int));
     tutorIDs = (int *)malloc(tutors *sizeof(int));
     helpNumber = (int *)malloc(students *sizeof(int));
+    visits = (int *)malloc(students *sizeof(int));
+    tutor = (int *)malloc(students *sizeof(int));
+    int queueSize = students * 2;
+    priorityQueue = (int *)malloc(queueSize *sizeof(int));
     // Initializing all the variables needed to keep track
     for (int i = 0; i < students; i++)
     {
-        priorityQueue[0][i] = -1;    // -1 for empty
-        priorityQueue[1][i] = -1;
+        priorityQueue[i] = -1;    // -1 for empty
+        priorityQueue[i + students] = -1;
         helpNumber[i] = help;    // Starting number of helps needed
         visits[i] = 0;
         tutor[i] = -1;
@@ -187,7 +191,7 @@ void *tutorFunc(void *id) {
         // Check if all students are done, kill tutors
         if (done >= students)
         {
-            //printf("****Tutor %d done****\n", tutorID);
+            printf("****Tutor %d done****\n", tutorID);
             return NULL;
         }
         
@@ -196,7 +200,7 @@ void *tutorFunc(void *id) {
 
         pthread_mutex_lock(&chairLock);
         // student with highest priority
-        int studentHP = priorityQueue[0][0];
+        int studentHP = priorityQueue[0];
         // no student in the list
         if(studentHP == -1) {
             pthread_mutex_unlock(&chairLock);
@@ -207,13 +211,13 @@ void *tutorFunc(void *id) {
         {
             if (i == students - 1)
             {
-                priorityQueue[0][i] = -1;
-                priorityQueue[1][i] = -1;
+                priorityQueue[i] = -1;
+                priorityQueue[i+students] = -1;
             }
             else
             {
-                priorityQueue[0][i] = priorityQueue[0][i + 1];
-                priorityQueue[1][i] = priorityQueue[1][i + 1];
+                priorityQueue[i] = priorityQueue[i + 1];
+                priorityQueue[i+students] = priorityQueue[i +students+ 1];
             }
         }
     
@@ -257,7 +261,7 @@ void *coordinatorFunc(void) {
                 sem_post(&semTutor);
             }
 
-            //printf("****All students done****\n");
+            printf("****All students done****\n");
             return NULL;
         }
         
@@ -266,8 +270,8 @@ void *coordinatorFunc(void) {
 
         // Update the priorityQ
         pthread_mutex_lock(&chairLock);
-        //[0][i] holds studentID
-        //[1][i] holds visits[studentID]
+        //[i] holds studentID
+        //[i+students] holds visits[studentID]
         // Traverse the entire queue and compare number of visits
         // Place the current student id
         if(helpNumber[*currentStudent] > 0 ) {
@@ -285,10 +289,10 @@ void *coordinatorFunc(void) {
             */
             // Inserting
             for (int i = 0; i < students; i++){
-                if (priorityQueue[0][i] == -1 && priorityQueue[1][i] == -1){
+                if (priorityQueue[i] == -1 && priorityQueue[i+students] == -1){
                     priority = i;
-                    priorityQueue[0][i] = currentStudent[0];
-                    priorityQueue[1][i] = visits[currentStudent[0]];
+                    priorityQueue[i] = currentStudent[0];
+                    priorityQueue[i+students] = visits[currentStudent[0]];
                     break;
                 }
             }
@@ -297,21 +301,21 @@ void *coordinatorFunc(void) {
             int tempVisits = -1;
             // Sorting by number of visits
             for (int i = 0; i < students; i++) {
-                if (priorityQueue[0][i] == -1 && priorityQueue[1][i] == -1) {
+                if (priorityQueue[i] == -1 && priorityQueue[i+students] == -1) {
                     break;
                 }
                 for (int j = i + 1; j < students; j++) {
-                    if (priorityQueue[0][j] == -1 && priorityQueue[1][j] == -1) {
+                    if (priorityQueue[j] == -1 && priorityQueue[j+students] == -1) {
                         break;
                     }
-                    if (priorityQueue[1][j] < priorityQueue[1][i]) {
+                    if (priorityQueue[j+students] < priorityQueue[i+students]) {
                         priority = i;
-                        tempID = priorityQueue[0][i];
-                        tempVisits = priorityQueue[1][i];
-                        priorityQueue[0][i] = priorityQueue[0][j];
-                        priorityQueue[1][i] = priorityQueue[1][j];
-                        priorityQueue[0][j] = tempID;
-                        priorityQueue[1][j] = tempVisits;
+                        tempID = priorityQueue[i];
+                        tempVisits = priorityQueue[i+students];
+                        priorityQueue[i] = priorityQueue[j];
+                        priorityQueue[i+students] = priorityQueue[j+students];
+                        priorityQueue[j] = tempID;
+                        priorityQueue[j+students] = tempVisits;
                     }
                 }
             }
